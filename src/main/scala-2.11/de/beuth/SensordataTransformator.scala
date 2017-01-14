@@ -21,15 +21,16 @@ object SensordataTransformator {
     val df = sqlContext.read
       .format(csvFormat)
       .option("header", "false")
-      .option("inferSchema", "true")
+//      .option("inferSchema", "true")
       .load(url)
     // Tabelle umbenennen
     df.registerTempTable("sensordata")
 
+    // TODO Alle Sensor-IDs identifizieren
+
     // Filterabfrage an Dataframe ausführen
     val result = sqlContext.sql(getSQLQuery(sensorType))
     result.show() // Einblenden zur Überprüfung
-    println("Total: " + result.count())   // Zeilenanzahl anzeigen
 
     // neue CSV-Datei rausschreiben, durch überführen in eine RDD
     val rddResult = result.rdd.map(x => x.mkString(","))
@@ -39,9 +40,9 @@ object SensordataTransformator {
   def getSQLQuery(sensorType: String): String = {
     var sqlQuery = ""
     if (sensorType == "ABA") {
-      sqlQuery = "SELECT C0, C1, C2, C3, C6 FROM sensordata;"
+      sqlQuery = "SELECT C0, C1, C2, C3, C6 FROM sensordata"
     } else if (sensorType == "PZS") {
-      sqlQuery = "SELECT C0, C1, C2, C6 FROM sensordata;"
+      sqlQuery = "SELECT C0, C1, C2, C6 FROM sensordata"
     }
     sqlQuery
   }

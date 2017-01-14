@@ -16,8 +16,7 @@ object Main extends App {
       val targetPath = args.apply(2)
       if (ArgumentInspector.inspectArguments(url, sensorType, targetPath)) {
         // Argumente gültig, weitere Bearbeitung erlaubt
-        // TODO Hier entsteht die Verbindung zur Spark-Klasse
-        println("All fine :)")
+        SensordataTransformator.startTransformation(url, sensorType, targetPath)
 
       } else {
         // Argumente ungültig. Fehler ausgeben und weitere Bearbeitung beenden.
