@@ -8,7 +8,10 @@ import org.apache.spark.sql.SQLContext
   */
 object SensordataTransformator {
 
-  def startTransformation(): Unit = {
+  def startTransformation(url: String, sensorType: String, targetPath: String): Unit = {
+    // Parameter definieren
+    val csvFormat = "com.databricks.spark.csv"
+
     // Spark initialisieren
     val conf = new SparkConf().setAppName("MT_PreAnalytics")
     val sc   = new SparkContext(conf)
@@ -24,21 +27,21 @@ object SensordataTransformator {
     df.registerTempTable("sensordata")
 
     // Filterabfrage an Dataframe ausführen
-    val result = sqlContext.sql(getSQLQuery(sensorType, sensorId))
+    val result = sqlContext.sql(getSQLQuery(sensorType))
     result.show() // Einblenden zur Überprüfung
     println("Total: " + result.count())   // Zeilenanzahl anzeigen
 
     // neue CSV-Datei rausschreiben, durch überführen in eine RDD
     val rddResult = result.rdd.map(x => x.mkString(","))
-    rddResult.saveAsTextFile(targetPath + "_" + sensorType + "_" + sensorId)
+    rddResult.saveAsTextFile(targetPath + "_" + sensorType)
   }
 
-  def getSQLQuery(sensorType: String, sensorId: String): String = {
+  def getSQLQuery(sensorType: String): String = {
     var sqlQuery = ""
     if (sensorType == "ABA") {
-      sqlQuery = "SELECT C0, C1, C2, C3, C6 FROM sensordata WHERE C0 = '" + sensorId + "'"
+      sqlQuery = "SELECT C0, C1, C2, C3, C6 FROM sensordata;"
     } else if (sensorType == "PZS") {
-      sqlQuery = "SELECT C0, C1, C2, C6 FROM sensordata WHERE C0 = '" + sensorId + "'"
+      sqlQuery = "SELECT C0, C1, C2, C6 FROM sensordata;"
     }
     sqlQuery
   }
