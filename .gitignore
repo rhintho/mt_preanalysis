@@ -1,0 +1,5 @@
+# IDE-Dateien (keime iml-Datei, da SBT-Projekt)
+.idea
+
+# Build-Dateien
+target
