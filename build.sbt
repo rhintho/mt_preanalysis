@@ -1,4 +1,4 @@
-name := "MT_Preanalytics"
+name := "MT_PreAnalytics"
 
 version := "0.1a"
 

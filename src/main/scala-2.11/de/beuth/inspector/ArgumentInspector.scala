@@ -1,4 +1,4 @@
-package de.beuth.error
+package de.beuth.inspector
 
 import java.nio.file.{Files, Paths}
 
@@ -9,12 +9,13 @@ import java.nio.file.{Files, Paths}
 object ArgumentInspector {
 
   val errorMessage: String = "Please use following options after spark-submit JAR " +
-                             "[path to CSV-Files] [Sensortype] [path to target]"
+                             "[path to CSV-Files] [Sensortype] [path to target] [path to GPS-Data]"
 
-  def inspectArguments(url: String, sensorType: String, targetPath: String): Boolean = {
-    inspectURL(url) &&
+  def inspectArguments(dataPath: String, sensorType: String, targetPath: String, gpsDataPath: String): Boolean = {
+    inspectURL(dataPath) &&
     inspectSensorType(sensorType) &&
-    inspectTargetPath(targetPath)
+    inspectTargetPath(targetPath) &&
+    inspectURL(gpsDataPath)
   }
 
   private def inspectTargetPath(targetPath: String): Boolean = {
