@@ -1,14 +1,24 @@
 package de.beuth
 
+import org.apache.log4j.{Level, LogManager, Logger, PropertyConfigurator}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.{DataFrame, SQLContext}
+import java.sql.Timestamp
 
 /**
   * Created by Sebastian Urbanek on 14.01.17.
   */
 object SensordataTransformator {
 
+  // LogManager initialisieren
+  val log: Logger = LogManager.getLogger(SensordataTransformator.getClass)
+  log.setLevel(Level.DEBUG)
+
+  val startTimestamp: Timestamp = Timestamp.valueOf("2009-01-01 00:00:00")
+  val endTimestamp: Timestamp   = Timestamp.valueOf("2014-12-31 23:45:00")
+
   def startTransformation(dataPath: String, sensorType: String, targetPath: String, gpsDataPath: String): Unit = {
+    log.debug("Start der Analyse wird eingeleitet ...")
     // Datenformat definieren
     val csvFormat = "com.databricks.spark.csv"
 
@@ -18,15 +28,11 @@ object SensordataTransformator {
     val sqlContext = new SQLContext(sc)
 
     // Dataframes erzeugen
-    val originData = createOriginDataDF(sqlContext, csvFormat, dataPath, sensorType)
-    val gpsData = createGPSReferenceDF(sqlContext, csvFormat, gpsDataPath)
-    originData.show()
+//    val originData = createOriginDataDF(sqlContext, csvFormat, dataPath, sensorType)
+//    val gpsData = createGPSReferenceDF(sqlContext, csvFormat, gpsDataPath)
 
     // Identifizieren aller vorkommenden Sensor-IDs
-    val sensorIds = identifyAllSensorIds(sqlContext, originData)
-    sensorIds.show()
-
-    // TODO Für jeden Sensor die Daten in ein 15-Minuten-Intervall zusammenfassen
+//    val sensorIds = identifyAllSensorIds(sqlContext, originData)
 
     // neue CSV-Datei rausschreiben, durch überführen in eine RDD
 //    val rddResult = result.rdd.map(x => x.mkString(","))
