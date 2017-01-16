@@ -3,3 +3,6 @@
 
 # Build-Dateien
 target
+
+# OS-Dateien
+.DS_Store
