@@ -1,7 +1,7 @@
 package de.beuth
 
 import de.beuth.inspector.ArgumentInspector
-import org.apache.log4j.{Logger, LogManager}
+import de.beuth.unit.TimeSegment
 
 /**
   * Created by Sebastian Urbanek on 08.01.17.
@@ -9,30 +9,34 @@ import org.apache.log4j.{Logger, LogManager}
 object Main extends App {
   // Einstiegspunkt des Programms
   override def main (args: Array[String]): Unit = {
-    // Logger initialisieren
-    val log = LogManager.getLogger(Main.getClass)
-
     try {
       // Parameter auslesen
       val dataPath = args.apply(0)
       val sensorType = args.apply(1)
       val targetPath = args.apply(2)
-      val gpsDataPath = args.apply(3)
+      val timeInterval = args.apply(3).toInt
+      val gpsDataPath = args.apply(4)
 
       // Überprüfung ob alle Argumente gültig sind.
-      if (ArgumentInspector.inspectArguments(dataPath, sensorType, targetPath, gpsDataPath)) {
+      if (ArgumentInspector.inspectArguments(dataPath, sensorType, targetPath, timeInterval, gpsDataPath)) {
         // Argumente gültig, weitere Bearbeitung erlaubt.
-        log.debug("Alle Parameter sind korrekt. Spark-Programm wird gestartet ...")
-        SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, gpsDataPath)
+        println("Alle Parameter sind korrekt. Spark-Programm wird gestartet ...")
+        TimeSegment.setTimeInterval(timeInterval)
+        println("Zeit-Intervall erfolgreich auf " + timeInterval + " Min. gesetzt.")
+
+        SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, timeInterval, gpsDataPath)
+        // Scheint zu funktionieren TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss
+        // starten kann
+//        println("Das soll ausgeführt werden, nachdem die Analyse beendet ist.")
 
       } else {
         // Argumente ungültig. Fehler ausgeben und weitere Bearbeitung beenden.
-        log.error("Arguments invalid!")
-        log.error(ArgumentInspector.errorMessage)
+        System.err.println("Arguments invalid!")
+        System.err.println(ArgumentInspector.errorMessage)
       }
     } catch {
       case e: ArrayIndexOutOfBoundsException =>
-        log.error("No arguments found.\n" + ArgumentInspector.errorMessage)
+        System.err.println("No arguments found.\n" + ArgumentInspector.errorMessage)
     }
   }
 }

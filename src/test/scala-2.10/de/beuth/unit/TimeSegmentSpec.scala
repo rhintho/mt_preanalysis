@@ -28,12 +28,22 @@ class TimeSegmentSpec extends FlatSpec {
   val timestamp6: Timestamp = Timestamp.valueOf("2015-01-01 00:00:00")
 
   "getTimestampSegment()" should "calculate the correct time segment." in {
+    TimeSegment.setTimeInterval(15)
     assert(TimeSegment.getTimestampSegment(time1) == timestamp1)
     assert(TimeSegment.getTimestampSegment(time2) == timestamp1)
     assert(TimeSegment.getTimestampSegment(time3) == timestamp1)
     assert(TimeSegment.getTimestampSegment(time4) == timestamp4)
     assert(TimeSegment.getTimestampSegment(time5) == timestamp5)
     assert(TimeSegment.getTimestampSegment(time6) == timestamp6)
+  }
+
+  "setTimeInterval()" should "set the new time interval and calculates new start- and endtimestamp." in {
+    TimeSegment.setTimeInterval(15)
+  }
+
+  "getNextTimestep()" should "return the next timestamp." in {
+    TimeSegment.setTimeInterval(15)
+    assert(TimeSegment.getNextTimestep(time1) == Timestamp.valueOf("2009-01-01 00:15:00"))
   }
 
   //  "TimeSegment" should "calculate the unix time correctly." in {
