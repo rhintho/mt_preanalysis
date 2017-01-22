@@ -33,23 +33,23 @@ object SensordataTransformator {
     val sqlContext = new SQLContext(sc)
 
     // Dataframes erzeugen
-//    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType)
-//    val gpsData = createGPSReferenceDataframe(sqlContext, csvFormat, gpsDataPath)
+    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType)
+    val gpsData = createGPSReferenceDataframe(sqlContext, csvFormat, gpsDataPath)
     val weatherData = WeatherAnalyzer.createWeatherDataframe(sqlContext, temperatureDataPath,
                                                              rainfallDataPath, csvFormat)
 
     // Beide Dataframes miteinander kombinieren, um jedem Sensor seine GPS-Koordinaten zuzuordnen
-//    val sensorData = joinOriginDataWithGPSData(originData, gpsData)
-    // TODO Wetterdaten mit in Sensordaten joinen
+    val sensorData = joinWithGPSAndWeatherData(originData, gpsData, weatherData)
 
     // Ursprüngliche Dataframe danach nicht mehr von Nutzen
-//    originData.unpersist()
-//    gpsData.unpersist()
+    originData.unpersist()
+    gpsData.unpersist()
+    weatherData.unpersist()
 
     // Identifizieren aller vorkommenden Sensor-IDs
-//    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
-//    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
-//                                                          targetPath, sensorType, sqlContext))
+    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
+    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
+                                                          targetPath, sensorType, sqlContext))
   }
 
   private def identifySingleSensor(sensorId: Int, sensorData: DataFrame,
@@ -57,33 +57,30 @@ object SensordataTransformator {
     val singleSensor = createSingleSensorDataframe(sensorData, sensorId)
     val avgVelocity = createSingleSensorForVelocityDataframe(sensorData, sensorId)
     val resultSensor = joinSingleSensorData(singleSensor, avgVelocity)
-    resultSensor.show(100)
     saveResult(resultSensor, targetPath, sensorId, sensorType)
   }
 
   private def saveResult(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
-    val rddResult = result.rdd.map(row => row.mkString(","))
+    val rddResult = result.rdd.map(row => row.mkString(",\t"))
     rddResult.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId)
     log.debug("Datei erfolgreich geschrieben (sensor_" + sensorType + "_" + sensorId + ")")
   }
 
-  private def assignTimeSegment(timestamp: String): Timestamp = {
-    val ts = Timestamp.valueOf(timestamp)
-    TimeSegment.getTimestampSegment(ts)
-  }
-  // Registrierung als User Defined Function
+  // Registrierung aller User Defined Function
   private def udfAssignTimeSegment = udf((timestamp: String) => assignTimeSegment(timestamp))
-
   private def udfCreateErrorColumn = udf(() => -1)
-  private def udfCreateWeatherColumn = udf(() => "sunshine")
-  private def udfCreateTemperatureColumn = udf(() => 27)
-  private def udfCreateVelocityColumn = udf(() => 0.toDouble)
-  private def udfCreateRegistrationColumn = udf(() => 0.toDouble)
+  private def udfCreateVelocityColumn = udf(() => 0.0)
+  private def udfCreateRegistrationColumn = udf(() => 0.0)
   private def udfCalcCompleteness = udf((count:Int) => ((count.toDouble / this.timeInterval) * 100).round)
   private def udfCalcVelocity = udf((v1: String, v2: String) => {if (v2 == null) v1 else v2})
 
   private def identifyAllSensorIds(sqlContext: SQLContext, sensorData: DataFrame): DataFrame = {
     sensorData.select("sensor_id").distinct().orderBy("sensor_id")
+  }
+
+  private def assignTimeSegment(timestamp: String): Timestamp = {
+    val ts = Timestamp.valueOf(timestamp)
+    TimeSegment.getTimestampSegment(ts)
   }
 
   private def createSingleSensorForVelocityDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
@@ -103,7 +100,7 @@ object SensordataTransformator {
   private def createSingleSensorDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
     val singleSensor = sensorData
       .filter(sensorData.col("sensor_id").equalTo(sensorId))
-      .groupBy("sensor_id", "timestamp", "latitude", "longitude", "temperature", "weather")
+      .groupBy("sensor_id", "timestamp", "latitude", "longitude", "temperature", "rainfall")
       .agg(Map(
         "registration" -> "sum",
         "completeness" -> "count"
@@ -128,7 +125,7 @@ object SensordataTransformator {
         "latitude",
         "longitude",
         "temperature",
-        "weather",
+        "rainfall",
         "completeness"
       )
 
@@ -139,7 +136,7 @@ object SensordataTransformator {
         "timestamp",
         "registration",
         "velocity",
-        "weather",
+        "rainfall",
         "temperature",
         "latitude",
         "longitude",
@@ -148,19 +145,26 @@ object SensordataTransformator {
       .orderBy("timestamp")
   }
 
-  private def joinOriginDataWithGPSData(originData: DataFrame, gpsData: DataFrame): DataFrame = {
-    gpsData
+  private def joinWithGPSAndWeatherData(originData: DataFrame, gpsData: DataFrame,
+                                        weatherData: DataFrame): DataFrame = {
+    val stage = gpsData
       .join(originData, originData("sensor_id").equalTo(gpsData("gps_sensor_id")))
+
+    stage
+      .join(weatherData,
+            stage("timestamp").substr(0, 13).equalTo(weatherData("weather_timestamp").substr(0, 13)),
+            "left_outer")
       .select(
         "sensor_id",
         "timestamp",
         "registration",
         "velocity",
         "completeness",
-        "weather",
-        "temperature",
         "latitude",
-        "longitude")
+        "longitude",
+        "temperature",
+        "rainfall"
+      )
   }
 
   private def createOriginDataDataframe(sqlContext: SQLContext, csvFormat: String,
@@ -189,8 +193,6 @@ object SensordataTransformator {
     sensorData
       .withColumn("timestamp", udfAssignTimeSegment(sensorData("timestamp")))
       .withColumn("completeness", udfCreateErrorColumn())
-      .withColumn("weather", udfCreateWeatherColumn())
-      .withColumn("temperature", udfCreateTemperatureColumn())
       .withColumn("registration", udfCreateRegistrationColumn())
   }
 
@@ -211,8 +213,6 @@ object SensordataTransformator {
     sensorData
       .withColumn("timestamp", udfAssignTimeSegment(sensorData("timestamp")))
       .withColumn("completeness", udfCreateErrorColumn())
-      .withColumn("weather", udfCreateWeatherColumn())
-      .withColumn("temperature", udfCreateTemperatureColumn())
   }
 
   private def createGPSReferenceDataframe(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {

@@ -15,8 +15,8 @@ object WeatherAnalyzer {
     temperatureData
       .join(rainfallData, temperatureData("td_timestamp").equalTo(rainfallData("rfd_timestamp")))
       .select("td_timestamp", "temperature", "rainfall")
-      .withColumnRenamed("td_timestamp", "timestamp")
-      .orderBy("timestamp")
+      .withColumnRenamed("td_timestamp", "weather_timestamp")
+      .orderBy("weather_timestamp")
   }
 
   private def createTemperatureDataframe(sqlContext: SQLContext, url: String, csvFormat: String): DataFrame = {

@@ -29,10 +29,7 @@ object Main extends App {
 
         SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, timeInterval,
                                                     gpsDataPath, temperatureDataPath, rainfallDataPath)
-        // Scheint zu funktionieren TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss
-        // starten kann
-//        println("Das soll ausgeführt werden, nachdem die Analyse beendet ist.")
-
+        // TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss
       } else {
         // Argumente ungültig. Fehler ausgeben und weitere Bearbeitung beenden.
         System.err.println("Arguments invalid!")
