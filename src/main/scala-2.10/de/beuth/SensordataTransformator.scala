@@ -41,30 +41,24 @@ object SensordataTransformator {
     gpsData.unpersist()
 
     // Identifizieren aller vorkommenden Sensor-IDs
-//    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
-
-//    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData, targetPath))
-    identifySingleSensor(182, sensorData, targetPath, sqlContext)
+    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
+    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
+                                                          targetPath, sensorType, sqlContext))
   }
 
   private def identifySingleSensor(sensorId: Int, sensorData: DataFrame,
-                                   targetPath: String, sQLContext: SQLContext): Unit = {
+                                   targetPath: String, sensorType: String, sQLContext: SQLContext): Unit = {
     val singleSensor = createSingleSensorDataframe(sensorData, sensorId)
-    singleSensor.show(50)
-
     val avgVelocity = createSingleSensorForVelocityDataframe(sensorData, sensorId)
-    avgVelocity.show(50)
-
     val resultSensor = joinSingleSensorData(singleSensor, avgVelocity)
-    resultSensor.show(50)
-
-//    saveResult(singleSensor, targetPath, sensorId)
+    resultSensor.show(100)
+    saveResult(resultSensor, targetPath, sensorId, sensorType)
   }
 
-  private def saveResult(result: DataFrame, targetPath: String, sensorId: Int): Unit = {
+  private def saveResult(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
     val rddResult = result.rdd.map(row => row.mkString(","))
-    rddResult.saveAsTextFile(targetPath + "sensor_" + sensorId)
-    log.debug("Datei erfolgreich geschrieben (sensor_" + sensorId + ")")
+    rddResult.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId)
+    log.debug("Datei erfolgreich geschrieben (sensor_" + sensorType + "_" + sensorId + ")")
   }
 
   private def assignTimeSegment(timestamp: String): Timestamp = {
@@ -78,6 +72,7 @@ object SensordataTransformator {
   private def udfCreateWeatherColumn = udf(() => "sunshine")
   private def udfCreateTemperatureColumn = udf(() => 27)
   private def udfCreateVelocityColumn = udf(() => 0.toDouble)
+  private def udfCreateRegistrationColumn = udf(() => 0.toDouble)
   private def udfCalcCompleteness = udf((count:Int) => ((count.toDouble / this.timeInterval) * 100).round)
   private def udfCalcVelocity = udf((v1: String, v2: String) => {if (v2 == null) v1 else v2})
 
@@ -164,6 +159,36 @@ object SensordataTransformator {
 
   private def createOriginDataDataframe(sqlContext: SQLContext, csvFormat: String,
                                         url: String, sensorType: String): DataFrame = {
+    if (sensorType == "PZS")
+      createOriginDataframeFromPZS(sqlContext, csvFormat, url)
+    else if (sensorType == "ABA")
+      createOriginDataframeFromABA(sqlContext, csvFormat, url)
+    else
+      null
+  }
+
+  private def createOriginDataframeFromABA(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {
+    val sensorData = sqlContext
+      .read
+      .format(csvFormat)
+      .option("header", "false")
+      .option("inferSchema", "true")  // automatisches Erkennen der Datentypen
+      .load(url)
+      // Nur relevante Spalten auswählen und signifikant benennen
+      .select("C0", "C1", "C6")
+      .withColumnRenamed("C0", "sensor_id")
+      .withColumnRenamed("C1", "timestamp")
+      .withColumnRenamed("C6", "velocity")
+
+    sensorData
+      .withColumn("timestamp", udfAssignTimeSegment(sensorData("timestamp")))
+      .withColumn("completeness", udfCreateErrorColumn())
+      .withColumn("weather", udfCreateWeatherColumn())
+      .withColumn("temperature", udfCreateTemperatureColumn())
+      .withColumn("registration", udfCreateRegistrationColumn())
+  }
+
+  private def createOriginDataframeFromPZS(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {
     val sensorData = sqlContext
       .read
       .format(csvFormat)
