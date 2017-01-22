@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions.udf
 import java.sql.Timestamp
 
 import de.beuth.unit.TimeSegment
+import de.beuth.util.WeatherAnalyzer
 
 /**
   * Created by Sebastian Urbanek on 14.01.17.
@@ -19,8 +20,8 @@ object SensordataTransformator {
   val log: Logger = LogManager.getLogger("SensordataTransformator")
   log.setLevel(Level.DEBUG)
 
-  def startTransformation(dataPath: String, sensorType: String, targetPath: String,
-                          timeInterval: Int, gpsDataPath: String): Unit = {
+  def startTransformation(dataPath: String, sensorType: String, targetPath: String, timeInterval: Int,
+                          gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String): Unit = {
     log.debug("Start der Analyse wird eingeleitet ...")
     // Datenformat definieren
     val csvFormat = "com.databricks.spark.csv"
@@ -32,18 +33,23 @@ object SensordataTransformator {
     val sqlContext = new SQLContext(sc)
 
     // Dataframes erzeugen
-    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType)
-    val gpsData = createGPSReferenceDataframe(sqlContext, csvFormat, gpsDataPath)
+//    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType)
+//    val gpsData = createGPSReferenceDataframe(sqlContext, csvFormat, gpsDataPath)
+    val weatherData = WeatherAnalyzer.createWeatherDataframe(sqlContext, temperatureDataPath,
+                                                             rainfallDataPath, csvFormat)
+
     // Beide Dataframes miteinander kombinieren, um jedem Sensor seine GPS-Koordinaten zuzuordnen
-    val sensorData = joinOriginDataWithGPSData(originData, gpsData)
+//    val sensorData = joinOriginDataWithGPSData(originData, gpsData)
+    // TODO Wetterdaten mit in Sensordaten joinen
+
     // Ursprüngliche Dataframe danach nicht mehr von Nutzen
-    originData.unpersist()
-    gpsData.unpersist()
+//    originData.unpersist()
+//    gpsData.unpersist()
 
     // Identifizieren aller vorkommenden Sensor-IDs
-    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
-    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
-                                                          targetPath, sensorType, sqlContext))
+//    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
+//    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
+//                                                          targetPath, sensorType, sqlContext))
   }
 
   private def identifySingleSensor(sensorId: Int, sensorData: DataFrame,

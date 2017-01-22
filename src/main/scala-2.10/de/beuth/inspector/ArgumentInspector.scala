@@ -12,12 +12,15 @@ object ArgumentInspector {
                              "[path to CSV-Files] [Sensortype] [path to target] [path to GPS-Data]"
 
   def inspectArguments(dataPath: String, sensorType: String, targetPath: String,
-                       timeInterval: Int, gpsDataPath: String): Boolean = {
+                       timeInterval: Int, gpsDataPath: String, temperatureDataPath: String,
+                       rainfallDataPath: String): Boolean = {
     inspectURL(dataPath) &&
     inspectSensorType(sensorType) &&
     inspectTargetPath(targetPath) &&
-    inspectTimeInterval(timeInterval)
-    inspectURL(gpsDataPath)
+    inspectTimeInterval(timeInterval) &&
+    inspectURL(gpsDataPath) &&
+    inspectURL(temperatureDataPath) &&
+    inspectURL(rainfallDataPath)
   }
 
   private def inspectTargetPath(targetPath: String): Boolean = {

@@ -16,15 +16,19 @@ object Main extends App {
       val targetPath = args.apply(2)
       val timeInterval = args.apply(3).toInt
       val gpsDataPath = args.apply(4)
+      val temperatureDataPath = args.apply(5)
+      val rainfallDataPath = args.apply(6)
 
       // Überprüfung ob alle Argumente gültig sind.
-      if (ArgumentInspector.inspectArguments(dataPath, sensorType, targetPath, timeInterval, gpsDataPath)) {
+      if (ArgumentInspector.inspectArguments(dataPath, sensorType, targetPath, timeInterval,
+                                             gpsDataPath, temperatureDataPath, rainfallDataPath)) {
         // Argumente gültig, weitere Bearbeitung erlaubt.
         println("Alle Parameter sind korrekt. Spark-Programm wird gestartet ...")
         TimeSegment.setTimeInterval(timeInterval)
         println("Zeit-Intervall erfolgreich auf " + timeInterval + " Min. gesetzt.")
 
-        SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, timeInterval, gpsDataPath)
+        SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, timeInterval,
+                                                    gpsDataPath, temperatureDataPath, rainfallDataPath)
         // Scheint zu funktionieren TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss
         // starten kann
 //        println("Das soll ausgeführt werden, nachdem die Analyse beendet ist.")
