@@ -13,14 +13,19 @@ object ArgumentInspector {
 
   def inspectArguments(dataPath: String, sensorType: String, targetPath: String,
                        timeInterval: Int, gpsDataPath: String, temperatureDataPath: String,
-                       rainfallDataPath: String): Boolean = {
+                       rainfallDataPath: String, sensorId: Int): Boolean = {
     inspectURL(dataPath) &&
     inspectSensorType(sensorType) &&
     inspectTargetPath(targetPath) &&
     inspectTimeInterval(timeInterval) &&
     inspectURL(gpsDataPath) &&
     inspectURL(temperatureDataPath) &&
-    inspectURL(rainfallDataPath)
+    inspectURL(rainfallDataPath) &&
+    inspectSensorId(sensorId)
+  }
+
+  private def inspectSensorId(sensorId: Int): Boolean = {
+    sensorId >= 182 && sensorId <= 1222
   }
 
   private def inspectTargetPath(targetPath: String): Boolean = {

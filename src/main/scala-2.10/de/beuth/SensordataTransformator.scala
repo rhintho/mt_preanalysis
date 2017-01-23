@@ -21,7 +21,8 @@ object SensordataTransformator {
   log.setLevel(Level.DEBUG)
 
   def startTransformation(dataPath: String, sensorType: String, targetPath: String, timeInterval: Int,
-                          gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String): Unit = {
+                          gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String,
+                          sensorId: Int): Unit = {
     log.debug("Start der Analyse wird eingeleitet ...")
     // Datenformat definieren
     val csvFormat = "com.databricks.spark.csv"
@@ -33,7 +34,7 @@ object SensordataTransformator {
     val sqlContext = new SQLContext(sc)
 
     // Dataframes erzeugen
-    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType)
+    val originData = createOriginDataDataframe(sqlContext, csvFormat, dataPath, sensorType, sensorId)
     val gpsData = createGPSReferenceDataframe(sqlContext, csvFormat, gpsDataPath)
     val weatherData = WeatherAnalyzer.createWeatherDataframe(sqlContext, temperatureDataPath,
                                                              rainfallDataPath, csvFormat)
@@ -47,9 +48,10 @@ object SensordataTransformator {
     weatherData.unpersist()
 
     // Identifizieren aller vorkommenden Sensor-IDs
-    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
-    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
-                                                          targetPath, sensorType, sqlContext))
+//    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
+//    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
+//                                                          targetPath, sensorType, sqlContext))
+    identifySingleSensor(sensorId, sensorData, targetPath, sensorType, sqlContext)
   }
 
   private def identifySingleSensor(sensorId: Int, sensorData: DataFrame,
@@ -61,7 +63,7 @@ object SensordataTransformator {
   }
 
   private def saveResult(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
-    val rddResult = result.rdd.map(row => row.mkString(",\t"))
+    val rddResult = result.rdd.map(row => row.mkString(","))
     rddResult.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId)
     log.debug("Datei erfolgreich geschrieben (sensor_" + sensorType + "_" + sensorId + ")")
   }
@@ -168,16 +170,17 @@ object SensordataTransformator {
   }
 
   private def createOriginDataDataframe(sqlContext: SQLContext, csvFormat: String,
-                                        url: String, sensorType: String): DataFrame = {
+                                        url: String, sensorType: String, sensorId: Int): DataFrame = {
     if (sensorType == "PZS")
-      createOriginDataframeFromPZS(sqlContext, csvFormat, url)
+      createOriginDataframeFromPZS(sqlContext, csvFormat, url, sensorId)
     else if (sensorType == "ABA")
-      createOriginDataframeFromABA(sqlContext, csvFormat, url)
+      createOriginDataframeFromABA(sqlContext, csvFormat, url, sensorId)
     else
       null
   }
 
-  private def createOriginDataframeFromABA(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {
+  private def createOriginDataframeFromABA(sqlContext: SQLContext, csvFormat: String, url: String,
+                                           sensorId: Int): DataFrame = {
     val sensorData = sqlContext
       .read
       .format(csvFormat)
@@ -191,12 +194,14 @@ object SensordataTransformator {
       .withColumnRenamed("C6", "velocity")
 
     sensorData
+      .filter(sensorData("sensor_id").equalTo(sensorId))
       .withColumn("timestamp", udfAssignTimeSegment(sensorData("timestamp")))
       .withColumn("completeness", udfCreateErrorColumn())
       .withColumn("registration", udfCreateRegistrationColumn())
   }
 
-  private def createOriginDataframeFromPZS(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {
+  private def createOriginDataframeFromPZS(sqlContext: SQLContext, csvFormat: String, url: String,
+                                           sensorId: Int): DataFrame = {
     val sensorData = sqlContext
       .read
       .format(csvFormat)
@@ -211,6 +216,7 @@ object SensordataTransformator {
       .withColumnRenamed("C6", "velocity")
 
     sensorData
+      .filter(sensorData("sensor_id").equalTo(sensorId))
       .withColumn("timestamp", udfAssignTimeSegment(sensorData("timestamp")))
       .withColumn("completeness", udfCreateErrorColumn())
   }
