@@ -13,7 +13,7 @@ object ArgumentInspector {
 
   def inspectArguments(dataPath: String, sensorType: String, targetPath: String,
                        timeInterval: Int, gpsDataPath: String, temperatureDataPath: String,
-                       rainfallDataPath: String, sensorId: Int): Boolean = {
+                       rainfallDataPath: String, sensorId: Int, jamValue: Int): Boolean = {
     inspectURL(dataPath) &&
     inspectSensorType(sensorType) &&
     inspectTargetPath(targetPath) &&
@@ -21,7 +21,8 @@ object ArgumentInspector {
     inspectURL(gpsDataPath) &&
     inspectURL(temperatureDataPath) &&
     inspectURL(rainfallDataPath) &&
-    inspectSensorId(sensorId)
+    inspectSensorId(sensorId) &&
+    inspectJamValue(jamValue)
   }
 
   private def inspectSensorId(sensorId: Int): Boolean = {
@@ -42,5 +43,9 @@ object ArgumentInspector {
 
   private def inspectURL(url: String): Boolean = {
     Files.exists(Paths.get(url))
+  }
+
+  private def inspectJamValue(jamValue: Int): Boolean = {
+    0 < jamValue
   }
 }

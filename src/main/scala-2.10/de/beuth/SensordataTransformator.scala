@@ -15,6 +15,7 @@ import de.beuth.util.WeatherAnalyzer
 object SensordataTransformator {
 
   var timeInterval: Int = 1
+  var jamValue: Double = 1
 
   // LogManager initialisieren
   val log: Logger = LogManager.getLogger("SensordataTransformator")
@@ -22,11 +23,13 @@ object SensordataTransformator {
 
   def startTransformation(dataPath: String, sensorType: String, targetPath: String, timeInterval: Int,
                           gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String,
-                          sensorId: Int): Unit = {
+                          sensorId: Int, jamValue: Int): Unit = {
     log.debug("Start der Analyse wird eingeleitet ...")
     // Datenformat definieren
     val csvFormat = "com.databricks.spark.csv"
+    // Allgemeine Werte setzen
     this.timeInterval = timeInterval
+    this.jamValue = jamValue.toDouble
 
     // Spark initialisieren mit dem SQL-Kontext
     val conf = new SparkConf().setAppName("MT_PreAnalytics")
@@ -47,25 +50,40 @@ object SensordataTransformator {
     gpsData.unpersist()
     weatherData.unpersist()
 
-    // Identifizieren aller vorkommenden Sensor-IDs
-//    val sensorIds = identifyAllSensorIds(sqlContext, sensorData)
-//    sensorIds.collect.foreach(row => identifySingleSensor(row.getInt(0), sensorData,
-//                                                          targetPath, sensorType, sqlContext))
-    identifySingleSensor(sensorId, sensorData, targetPath, sensorType, sqlContext)
+
+    val resultData = createResultData(sensorId, sensorData, sensorType, sqlContext)
+    resultData.show(200)
+    sensorData.unpersist()
+    saveResultDataframe(resultData, targetPath, sensorId, sensorType)
+
+    val libsvm = transformIntoLIBSVM(sqlContext, resultData)
+    saveLIBSVM(libsvm, targetPath, sensorId, sensorType)
   }
 
-  private def identifySingleSensor(sensorId: Int, sensorData: DataFrame,
-                                   targetPath: String, sensorType: String, sQLContext: SQLContext): Unit = {
+  private def createResultData(sensorId: Int, sensorData: DataFrame,
+                               sensorType: String, sQLContext: SQLContext): DataFrame = {
     val singleSensor = createSingleSensorDataframe(sensorData, sensorId)
     val avgVelocity = createSingleSensorForVelocityDataframe(sensorData, sensorId)
-    val resultSensor = joinSingleSensorData(singleSensor, avgVelocity)
-    saveResult(resultSensor, targetPath, sensorId, sensorType)
+    joinSingleSensorData(singleSensor, avgVelocity)
   }
 
-  private def saveResult(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
+  private def saveResultDataframe(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
     val rddResult = result.rdd.map(row => row.mkString(","))
     rddResult.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId)
     log.debug("Datei erfolgreich geschrieben (sensor_" + sensorType + "_" + sensorId + ")")
+  }
+
+  private def saveLIBSVM(libsvm: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
+    val preRdd = libsvm.rdd
+      .map(r => (
+        r.getInt(4), 1 + ":" + r.getInt(0), 2 + ":" + r.getLong(1), 3 + ":" + r.getDouble(2), 4 + ":" + r.getString(3),
+        5 + ":" + r.getDouble(5), 6 + ":" + r.getDouble(6), 7 + ":" + r.getDouble(7), 8 + ":" + r.getDouble(8),
+        9 + ":" + r.getLong(9)
+      ))
+      .map(r => r.toString().replace("(", "").replace(")", ""). replace(",", " "))
+    val rdd = preRdd
+    rdd.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId + ".libsvm")
+    log.debug("LIBSVM erfolgreich geschrieben (als sensor_" + sensorType + "_" + sensorId + ".libsvm)")
   }
 
   // Registrierung aller User Defined Function
@@ -75,9 +93,19 @@ object SensordataTransformator {
   private def udfCreateRegistrationColumn = udf(() => 0.0)
   private def udfCalcCompleteness = udf((count:Int) => ((count.toDouble / this.timeInterval) * 100).round)
   private def udfCalcVelocity = udf((v1: String, v2: String) => {if (v2 == null) v1 else v2})
+  private def udfTransformTimestampToUnixtime = udf((timestamp: Timestamp) => timestamp.getTime)
+  private def udfDefineClass = udf((v: Double) => defineClass(v, this.jamValue))
 
   private def identifyAllSensorIds(sqlContext: SQLContext, sensorData: DataFrame): DataFrame = {
     sensorData.select("sensor_id").distinct().orderBy("sensor_id")
+  }
+
+  private def defineClass(v: Double, j: Double): Int = {
+    if (v <= j && v > 0) {
+      0
+    } else {
+      1
+    }
   }
 
   private def assignTimeSegment(timestamp: String): Timestamp = {
@@ -85,9 +113,14 @@ object SensordataTransformator {
     TimeSegment.getTimestampSegment(ts)
   }
 
+  private def transformIntoLIBSVM(sqlContext: SQLContext, sensorData: DataFrame): DataFrame = {
+    sensorData
+      .withColumn("timestamp", udfTransformTimestampToUnixtime(sensorData("timestamp")))
+  }
+
   private def createSingleSensorForVelocityDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
     sensorData
-      .filter(sensorData("sensor_id").equalTo(sensorId))
+//      .filter(sensorData("sensor_id").equalTo(sensorId))
       .select("sensor_id", "timestamp", "velocity")
       .filter(sensorData("velocity").gt(0))
       .groupBy("sensor_id", "timestamp")
@@ -101,7 +134,7 @@ object SensordataTransformator {
 
   private def createSingleSensorDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
     val singleSensor = sensorData
-      .filter(sensorData.col("sensor_id").equalTo(sensorId))
+//      .filter(sensorData.col("sensor_id").equalTo(sensorId))
       .groupBy("sensor_id", "timestamp", "latitude", "longitude", "temperature", "rainfall")
       .agg(Map(
         "registration" -> "sum",
@@ -131,13 +164,18 @@ object SensordataTransformator {
         "completeness"
       )
 
-    joinedVelocity
+    val resultData = joinedVelocity
       .withColumn("velocity", udfCalcVelocity(joinedVelocity("velocity"), joinedVelocity("v_velocity")))
+
+
+    resultData
+      .withColumn("class", udfDefineClass(resultData("velocity")))
       .select(
         "sensor_id",
         "timestamp",
         "registration",
         "velocity",
+        "class",
         "rainfall",
         "temperature",
         "latitude",

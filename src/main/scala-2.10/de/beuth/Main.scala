@@ -19,18 +19,19 @@ object Main extends App {
       val temperatureDataPath = args.apply(5)
       val rainfallDataPath = args.apply(6)
       val sensorId = args.apply(7).toInt
+      val jamValue = args.apply(8).toInt
 
       // Überprüfung ob alle Argumente gültig sind.
       if (ArgumentInspector.inspectArguments(dataPath, sensorType, targetPath, timeInterval, gpsDataPath,
-                                             temperatureDataPath, rainfallDataPath, sensorId)) {
+                                             temperatureDataPath, rainfallDataPath, sensorId, jamValue)) {
         // Argumente gültig, weitere Bearbeitung erlaubt.
         println("Alle Parameter sind korrekt. Spark-Programm wird gestartet ...")
         TimeSegment.setTimeInterval(timeInterval)
         println("Zeit-Intervall erfolgreich auf " + timeInterval + " Min. gesetzt.")
 
         SensordataTransformator.startTransformation(dataPath, sensorType, targetPath, timeInterval, gpsDataPath,
-                                                    temperatureDataPath, rainfallDataPath, sensorId)
-        // TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss
+                                                    temperatureDataPath, rainfallDataPath, sensorId, jamValue)
+        // TODO muss noch weiter getestet werden, ob man eine weitere Analyse im Anschluss durchführen kann
       } else {
         // Argumente ungültig. Fehler ausgeben und weitere Bearbeitung beenden.
         System.err.println("Arguments invalid!")
