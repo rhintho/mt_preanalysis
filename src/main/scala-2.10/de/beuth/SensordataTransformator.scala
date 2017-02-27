@@ -15,7 +15,6 @@ import de.beuth.util.WeatherAnalyzer
 object SensordataTransformator {
 
   var timeInterval: Int = 1
-  var jamValue: Double = 1
 
   // LogManager initialisieren
   val log: Logger = LogManager.getLogger("SensordataTransformator")
@@ -23,13 +22,12 @@ object SensordataTransformator {
 
   def startTransformation(dataPath: String, sensorType: String, targetPath: String, timeInterval: Int,
                           gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String,
-                          sensorId: Int, jamValue: Int): Unit = {
+                          sensorId: Int): Unit = {
     log.debug("Start der Analyse wird eingeleitet ...")
     // Datenformat definieren
     val csvFormat = "com.databricks.spark.csv"
     // Allgemeine Werte setzen
     this.timeInterval = timeInterval
-    this.jamValue = jamValue.toDouble
 
     // Spark initialisieren mit dem SQL-Kontext
     val conf = new SparkConf().setAppName("MT_PreAnalytics")
@@ -50,14 +48,11 @@ object SensordataTransformator {
     gpsData.unpersist()
     weatherData.unpersist()
 
-
+    // Finales Dataframe erzeugen und auf Festplatte speichern
     val resultData = createResultData(sensorId, sensorData, sensorType, sqlContext)
     resultData.show(200)
     sensorData.unpersist()
     saveResultDataframe(resultData, targetPath, sensorId, sensorType)
-
-    val libsvm = transformIntoLIBSVM(sqlContext, resultData)
-    saveLIBSVM(libsvm, targetPath, sensorId, sensorType)
   }
 
   private def createResultData(sensorId: Int, sensorData: DataFrame,
@@ -94,18 +89,9 @@ object SensordataTransformator {
   private def udfCalcCompleteness = udf((count:Int) => ((count.toDouble / this.timeInterval) * 100).round)
   private def udfCalcVelocity = udf((v1: String, v2: String) => {if (v2 == null) v1 else v2})
   private def udfTransformTimestampToUnixtime = udf((timestamp: Timestamp) => timestamp.getTime)
-  private def udfDefineClass = udf((v: Double) => defineClass(v, this.jamValue))
 
   private def identifyAllSensorIds(sqlContext: SQLContext, sensorData: DataFrame): DataFrame = {
     sensorData.select("sensor_id").distinct().orderBy("sensor_id")
-  }
-
-  private def defineClass(v: Double, j: Double): Int = {
-    if (v <= j && v > 0) {
-      0
-    } else {
-      1
-    }
   }
 
   private def assignTimeSegment(timestamp: String): Timestamp = {
@@ -164,18 +150,13 @@ object SensordataTransformator {
         "completeness"
       )
 
-    val resultData = joinedVelocity
+    joinedVelocity
       .withColumn("velocity", udfCalcVelocity(joinedVelocity("velocity"), joinedVelocity("v_velocity")))
-
-
-    resultData
-      .withColumn("class", udfDefineClass(resultData("velocity")))
       .select(
         "sensor_id",
         "timestamp",
         "registration",
         "velocity",
-        "class",
         "rainfall",
         "temperature",
         "latitude",

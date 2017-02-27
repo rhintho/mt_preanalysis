@@ -1,6 +1,6 @@
-name := "MT_PreAnalytics"
+name := "MT_PreAnalysis"
 
-version := "0.1a"
+version := "0.2a"
 
 scalaVersion := "2.10.6"
 
