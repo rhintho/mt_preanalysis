@@ -4,9 +4,6 @@ import java.sql.Timestamp
 
 import org.apache.log4j.{Level, LogManager, Logger}
 
-/**
-  * Created by Sebastian Urbanek on 16.01.17.
-  */
 object TimeSegment {
 
   // LogManager initialisieren

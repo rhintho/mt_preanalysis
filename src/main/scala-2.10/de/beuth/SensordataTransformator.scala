@@ -10,7 +10,7 @@ import de.beuth.unit.TimeSegment
 import de.beuth.util.WeatherAnalyzer
 
 /**
-  * Created by Sebastian Urbanek on 14.01.17.
+  * Kapselung der Funktionen zur Voraggregation der Datenquellen.
   */
 object SensordataTransformator {
 
@@ -20,6 +20,7 @@ object SensordataTransformator {
   val log: Logger = LogManager.getLogger("SensordataTransformator")
   log.setLevel(Level.DEBUG)
 
+  // Hauptfunktion setzt die Ereignisse in Gang und startet Spark
   def startTransformation(dataPath: String, sensorType: String, targetPath: String, timeInterval: Int,
                           gpsDataPath: String, temperatureDataPath: String, rainfallDataPath: String,
                           sensorId: Int): Unit = {
@@ -55,6 +56,7 @@ object SensordataTransformator {
     saveResultDataframe(resultData, targetPath, sensorId, sensorType)
   }
 
+  // Erzeugt das finale Datenset zum Speichern
   private def createResultData(sensorId: Int, sensorData: DataFrame,
                                sensorType: String, sQLContext: SQLContext): DataFrame = {
     val singleSensor = createSingleSensorDataframe(sensorData, sensorId)
@@ -62,12 +64,14 @@ object SensordataTransformator {
     joinSingleSensorData(singleSensor, avgVelocity)
   }
 
+  // Funktion zum Speichern der aggregierten Funktionen als CSV
   private def saveResultDataframe(result: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
     val rddResult = result.rdd.map(row => row.mkString(","))
     rddResult.saveAsTextFile(targetPath + "sensor_" + sensorType + "_" + sensorId)
     log.debug("Datei erfolgreich geschrieben (sensor_" + sensorType + "_" + sensorId + ")")
   }
 
+  // Übrigbleibsel aus dem Entwicklungsprozess
   private def saveLIBSVM(libsvm: DataFrame, targetPath: String, sensorId: Int, sensorType: String): Unit = {
     val preRdd = libsvm.rdd
       .map(r => (
@@ -94,16 +98,19 @@ object SensordataTransformator {
     sensorData.select("sensor_id").distinct().orderBy("sensor_id")
   }
 
+  // Funktion zur Zuordnung eines Zeitstempel zu einem Zeitabschnitt
   private def assignTimeSegment(timestamp: String): Timestamp = {
     val ts = Timestamp.valueOf(timestamp)
     TimeSegment.getTimestampSegment(ts)
   }
 
+  // Übrigbleibsel
   private def transformIntoLIBSVM(sqlContext: SQLContext, sensorData: DataFrame): DataFrame = {
     sensorData
       .withColumn("timestamp", udfTransformTimestampToUnixtime(sensorData("timestamp")))
   }
 
+  // Funktion zur Erzeugung des DataFrames mit den aggregierten Geschwindigkeitswerten
   private def createSingleSensorForVelocityDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
     sensorData
 //      .filter(sensorData("sensor_id").equalTo(sensorId))
@@ -118,6 +125,7 @@ object SensordataTransformator {
       .withColumnRenamed("timestamp", "v_timestamp")
   }
 
+  // Funktion zur Aggregation des Belegung und Vollständigkeit
   private def createSingleSensorDataframe(sensorData: DataFrame, sensorId: Int): DataFrame = {
     val singleSensor = sensorData
 //      .filter(sensorData.col("sensor_id").equalTo(sensorId))
@@ -134,6 +142,7 @@ object SensordataTransformator {
       .withColumn("velocity", udfCreateVelocityColumn())
   }
 
+  //Funktion für JOIN der aggregierten Daten mit den aggregierten Geschwindigkeitsdaten
   private def joinSingleSensorData(singleSensor: DataFrame, velocity: DataFrame): DataFrame = {
     val joinedVelocity = singleSensor
       .join(velocity, singleSensor("timestamp").equalTo(velocity("v_timestamp")), "left_outer")
@@ -166,6 +175,7 @@ object SensordataTransformator {
       .orderBy("timestamp")
   }
 
+  // Funktion für JOIN für GPS und Wetter Daten
   private def joinWithGPSAndWeatherData(originData: DataFrame, gpsData: DataFrame,
                                         weatherData: DataFrame): DataFrame = {
     val stage = gpsData
@@ -188,6 +198,7 @@ object SensordataTransformator {
       )
   }
 
+  // Funktion zur Unterscheidung des Ausgangdatentype
   private def createOriginDataDataframe(sqlContext: SQLContext, csvFormat: String,
                                         url: String, sensorType: String, sensorId: Int): DataFrame = {
     if (sensorType == "PZS")
@@ -198,6 +209,7 @@ object SensordataTransformator {
       null
   }
 
+  // Funktion zur Erzeugung eines DataFrame für den ABA-Typ
   private def createOriginDataframeFromABA(sqlContext: SQLContext, csvFormat: String, url: String,
                                            sensorId: Int): DataFrame = {
     val sensorData = sqlContext
@@ -219,6 +231,7 @@ object SensordataTransformator {
       .withColumn("registration", udfCreateRegistrationColumn())
   }
 
+  // Funktion zur Erzeugung eines DataFrame für den PZS-Typ
   private def createOriginDataframeFromPZS(sqlContext: SQLContext, csvFormat: String, url: String,
                                            sensorId: Int): DataFrame = {
     val sensorData = sqlContext
@@ -240,6 +253,7 @@ object SensordataTransformator {
       .withColumn("completeness", udfCreateErrorColumn())
   }
 
+  // Funktion zur Erzeugung eines DataFrames für die GPS Koordinaten
   private def createGPSReferenceDataframe(sqlContext: SQLContext, csvFormat: String, url: String): DataFrame = {
     sqlContext
       .read
